@@ -1,0 +1,5 @@
+flask
+playwright
+python-dotenv
+requests
+asyncio

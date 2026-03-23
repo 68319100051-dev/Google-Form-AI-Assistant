@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Form AI Auto-Filler</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=6">
+</head>
+<body>
+    <div class="background-blobs">
+        <div class="blob primary"></div>
+        <div class="blob secondary"></div>
+    </div>
+
+    <main class="layout-container">
+        <!-- Left Panel: Activity Feed -->
+        <div class="activity-panel glass-panel hidden" id="activityPanel">
+            <div class="activity-header">
+                <h2><i class="ph ph-activity"></i> Live Activity</h2>
+                <div class="pulse-indicator"></div>
+            </div>
+            <div class="activity-feed" id="activityFeed">
+                <!-- Log entries will be injected here -->
+            </div>
+        </div>
+
+        <!-- Right / Center Panel: Main Content -->
+        <div class="main-panel glass-panel">
+            <header class="header" style="position: relative;">
+                <button id="settingsBtn" class="settings-btn" title="ตั้งค่าคีย์ AI ส่วนตัว">
+                    <i class="ph ph-gear"></i>
+                </button>
+                <div class="icon-wrapper">
+                    <i class="ph ph-robot"></i>
+                </div>
+                <h1>Google Form AI Assistant</h1>
+                <p>สแกนแบบสอบถามและเลือกให้ AI หรือคุณเป็นผู้ตอบ</p>
+            </header>
+
+            <!-- Step 1: Input URL -->
+            <form id="step1Form" class="form-wrapper">
+                <div class="input-group">
+                    <label for="formUrl">URL ของ Google Form <span class="required">*</span></label>
+                    <div class="input-icon-wrapper">
+                        <i class="ph ph-link"></i>
+                        <input type="url" id="formUrl" name="url" placeholder="https://docs.google.com/forms/d/e/..." required>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="email">อีเมล (ถ้าฟอร์มบังคับ)</label>
+                    <div class="input-icon-wrapper">
+                        <i class="ph ph-envelope-simple"></i>
+                        <input type="email" id="email" name="email" placeholder="example@gmail.com">
+                    </div>
+                    <span class="helper-text">เพื่อความปลอดภัย ระบบจะกรอกให้ในช่องอีเมลเท่านั้น</span>
+                </div>
+
+                <button type="submit" id="scanBtn" class="btn-primary">
+                    <span class="btn-text">สแกนแบบสอบถาม</span>
+                    <i class="ph ph-magnifying-glass"></i>
+                </button>
+            </form>
+
+            <!-- Step 2: Configure Answers -->
+            <div id="step2Container" class="hidden">
+                <div class="form-summary">
+                    <h2 id="formTitle">Form Title</h2>
+                    <p id="formDescription">Form Description</p>
+                </div>
+
+                <div class="questions-section" id="personalSection" style="display:none;">
+                    <h3><i class="ph ph-user" style="margin-right:4px;"></i> คำถามส่วนตัว (ต้องกรอกเอง)</h3>
+                    <p class="section-desc">ระบบตรวจพบคำถามเหล่านี้เป็นข้อมูลส่วนตัว กรุณากรอกก่อนเริ่มทำข้อสอบ</p>
+                    <div id="personalQuestionsList" class="questions-list"></div>
+                </div>
+
+                <div class="questions-section" id="examSection" style="display:none;">
+                    <h3><i class="ph ph-exam" style="margin-right:4px;"></i> คำถามข้อสอบ / แบบสอบถาม</h3>
+                    <p class="section-desc">ข้อเหล่านี้ AI จะตอบให้อัตโนมัติ (คุณสามารถเลือกพิมพ์เองได้ถ้าต้องการ)</p>
+                    <div id="examQuestionsList" class="questions-list"></div>
+                </div>
+
+                <div class="questions-section" id="noQuestionsMsg" style="display:none;">
+                    <p style="color: var(--text-secondary); text-align: center; padding: 1rem;">ไม่พบคำถามในฟอร์มนี้</p>
+                </div>
+
+                <div class="action-buttons">
+                    <button type="button" id="backBtn" class="btn-secondary">
+                        <i class="ph ph-arrow-left"></i> กลับ
+                    </button>
+                    <button type="button" id="startFillBtn" class="btn-primary">
+                        <span class="btn-text">ยืนยันและเริ่มส่งแบบสอบถาม</span>
+                        <i class="ph ph-paper-plane-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loader & Results -->
+            <div id="statusContainer" class="status-container hidden">
+                <div id="loader" class="loader">
+                    <span class="spinner"></span>
+                    <p id="loaderText">กำลังดำเนินการ กรุณารอสักครู่...</p>
+                </div>
+                <div id="resultBox" class="result-box hidden">
+                    <div id="resultIcon" class="result-icon"></div>
+                    <h3 id="resultTitle"></h3>
+                    <p id="resultMessage"></p>
+                    <img id="resultScreenshot" class="result-screenshot hidden" alt="ยืนยันการส่งฟอร์ม">
+                    <div id="repairSection" class="questions-section hidden" style="margin-top: 2rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem; text-align: left;">
+                        <h3 style="color: #ff9800;"><i class="ph ph-warning"></i> พบข้อสอบที่ยังไม่ได้ตอบ (จำเป็น)</h3>
+                        <p class="section-desc" style="font-size: 0.85rem; margin-bottom: 1rem;">กรุณาเลือกคำตอบสำหรับข้อที่ติด Error ด้านล่างนี้แล้วกดส่งอีกครั้ง</p>
+                        <div id="repairQuestionsList" class="questions-list"></div>
+                        <button type="button" id="resubmitBtn" class="btn-primary" style="margin-top: 1.5rem; width: 100%;">
+                            <span class="btn-text">ส่งอีกครั้ง</span>
+                            <i class="ph ph-paper-plane-right"></i>
+                        </button>
+                    </div>
+
+                    <button type="button" id="resetBtn" class="btn-secondary mt-3">เริ่มต้นใหม่</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal-overlay hidden">
+        <div class="modal-content glass-panel">
+            <div class="modal-header">
+                <h2><i class="ph ph-sliders-horizontal"></i> ตั้งค่า AI ส่วนตัว</h2>
+                <button id="closeSettings" class="close-btn">&times;</button>
+            </div>
+            
+            <p class="section-desc">เพิ่มความเสถียรและความไวด้วยการใส่ API Key ของคุณเอง (ข้อมูลจะถูกบันทึกไว้ในเบราว์เซอร์ของคุณเท่านั้น)</p>
+
+            <div class="settings-tabs">
+                <div class="tab-item active" data-tab="gemini">Google Gemini</div>
+                <div class="tab-item" data-tab="groq">Groq (เร็วมาก)</div>
+            </div>
+
+            <div class="tab-content" id="geminiTab">
+                <div class="guide-steps">
+                    <div class="step">
+                        <span class="step-num">1</span>
+                        <p>กดปุ่ม <a href="https://aistudio.google.com/app/apikey" target="_blank" class="link-btn">รับคีย์ฟรีที่นี่ <i class="ph ph-arrow-square-out"></i></a></p>
+                    </div>
+                    <div class="step">
+                        <span class="step-num">2</span>
+                        <p>กดปุุ่ม <b>Create API Key</b> แล้วคัดลอกรหัส (ขึ้นต้นด้วย AIza...)</p>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Gemini API Key</label>
+                    <div class="input-icon-wrapper">
+                        <i class="ph ph-key"></i>
+                        <input type="password" id="userGeminiKey" placeholder="วางรหัส AIza... ที่นี่">
+                    </div>
+                </div>
+            </div>
+
+            <div id="groqTab" class="tab-content hidden">
+                <div class="guide-steps">
+                    <div class="step">
+                        <span class="step-num">1</span>
+                        <p>กดปุ่ม <a href="https://console.groq.com/keys" target="_blank" class="link-btn">รับคีย์ Groq ฟรี <i class="ph ph-arrow-square-out"></i></a></p>
+                    </div>
+                    <div class="step">
+                        <span class="step-num">2</span>
+                        <p>กด <b>Create API Key</b> แล้วคัดลอกรหัส (ขึ้นต้นด้วย gsk_...)</p>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Groq API Key</label>
+                    <div class="input-icon-wrapper">
+                        <i class="ph ph-key"></i>
+                        <input type="password" id="userGroqKey" placeholder="วางรหัส gsk_... ที่นี่">
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer mt-4">
+                <p class="helper-text mb-3" style="font-size: 0.8rem; color: var(--text-secondary); opacity: 0.8;">
+                    <i class="ph ph-info"></i> หากไม่มีคีย์ ระบบจะใช้คีย์ส่วนกลางให้โดยอัตโนมัติ
+                </p>
+                <div style="display: flex; gap: 1rem;">
+                    <button id="saveSettings" class="btn-primary" style="flex: 2;">บันทึกตั้งค่า</button>
+                    <button id="clearSettings" class="btn-secondary" style="flex: 1;">ล้าง</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}?v=6"></script>
+</body>
+</html>
